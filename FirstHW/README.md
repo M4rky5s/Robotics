@@ -18,7 +18,7 @@ Komponentų sujungimas:
 - Buzzer → D13  
 - Maitinimas: 5V ir GND iš Arduino  
 
-![Schema](1HWRobotics.png)  
+![Schema](HW1.png)  
 
 ## Programinė dalis
 Naudojau Arduino IDE / Tinkercad aplinką. Kodas nuskaito PIR jutiklio signalą ir pagal jį įjungia arba išjungia LED bei buzzer. (Visas kodas yra "main" faile).
