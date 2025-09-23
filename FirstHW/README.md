@@ -34,3 +34,5 @@ Kas neveikė: Buvo taip, jog buvau ne taip, kaip reikia sujungęs porą laidų, 
 
 ## Išvada
 Projektas pademonstravo, kaip galima sujungti sensorių ir aktuatorių naudojant Arduino. Sistema veikia kaip paprasta signalizacija, tinkama mokumuisi ir pagrindiniams automatizacijos principams suprasti.
+
+<video src="FirstHomeWork.mp4" width="600" controls></video>
