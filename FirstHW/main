@@ -1,26 +1,135 @@
-int pinSensor =2;
-int pinLed =12;
-int pinBuzzer =13;
+#include <LiquidCrystal_I2C.h>
+
+#include <Keypad.h>
+
+#include <Wire.h>
+
+// Visi regirstuoti Pinai
+int pinSensor = 8;
+int pinBuzzer = 13;
+int pinButton = 9;
+int pinLedRed = 10;
+int pinLedGreen = 12;
+int pinLedBlue = 11;
+
+// LCD Ekranas
+LiquidCrystal_I2C lcd(0x20, 16, 2);
+
+//Keypadas
+const byte ROWS = 4;
+const byte COLS = 4;
+char keys[ROWS][COLS] = {
+  {'1', '2', '3', 'A'},
+  {'4', '5', '6', 'B'},
+  {'7', '8', '9', 'C'},
+  {'*', '0', '#', 'D'}
+};
+byte rowPins[ROWS] = {7, 6, 5, 4};
+byte colPins[COLS] = {3, 2, 1, 0};
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+// Sistema
+String password = "1111";
+String input = "";
+bool systemOn = false;
+bool alarmOn = false;
+
+int lastButtonState = HIGH;
 
 void setup()
 {
   pinMode(pinSensor, INPUT);
-  pinMode(pinLed, OUTPUT);
   pinMode(pinBuzzer, OUTPUT);
+  pinMode(pinButton, INPUT_PULLUP);
+  pinMode(pinLedRed, OUTPUT);
+  pinMode(pinLedGreen, OUTPUT);
+  pinMode(pinLedBlue, OUTPUT);
+  
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("SISTEMA ISJUNGTA");
+}
+
+void setColor(int red, int green, int blue){
+  analogWrite(pinLedRed, red);
+  analogWrite(pinLedGreen, green);
+  analogWrite(pinLedBlue, blue);
 }
 
 void loop()
 {
-  int pirSensor = digitalRead(pinSensor);
-  if(pirSensor == HIGH){
+  int buttonState = digitalRead(pinButton);
   
-    digitalWrite(pinLed, HIGH);
-    tone(pinBuzzer, 1000, 500);
+  if(!alarmOn){
+  	if(lastButtonState == HIGH && buttonState == LOW){
+    	systemOn = !systemOn;
+    	alarmOn = false;
+    	if(systemOn){
+      	lcd.clear();
+      	lcd.print("SISTEMA IJUNGTA");
+    	} else{
+      	lcd.clear();
+      	lcd.print("SISTEMA ISJUNGTA");
+      	setColor(0,0,0);
+      	noTone(pinBuzzer);
+    	}
+    	delay(50);
+  	}
   }
-  else{
   
-    digitalWrite(pinLed, LOW);
+  lastButtonState = buttonState;
+  
+  if(systemOn && !alarmOn){
+  	int pirSensor = digitalRead(pinSensor);
+    
+    if(pirSensor == HIGH){
+      alarmOn = true;
+      lcd.clear();
+      lcd.print("ALARMAS!");
+    } else{
+      setColor(0, 255, 0);
+      noTone(pinBuzzer);
+    }
+}
+  
+// Alarmo logika
+
+  if(alarmOn){
+    setColor(255, 0, 0);
+    tone(pinBuzzer, 1000);
+    
+    char key = keypad.getKey();
+    if(key == '#'){
+      if(input == password){
+        systemOn = false;
+        alarmOn = false;
+        input = "";
+        lcd.clear();
+        lcd.print("TEISINGAS PIN");
+        delay(1000);
+        lcd.clear();
+        lcd.print("SISTEMA ISJUNGTA");
+		noTone(pinBuzzer);
+        setColor(0, 0, 0);
+      } else{
+        lcd.clear();
+        lcd.print("BLOGAS PIN");
+        delay(1000);
+        lcd.clear();
+        lcd.print("ALARMAS!");
+        input = "";
+      }
+    } 
+    else if(key == '*'){
+      input = "";
+      lcd.setCursor(0, 1);
+      lcd.print("        ");
+    } else if(key){
+      input += key;
+      lcd.setCursor(0, 1);
+      lcd.print(input);
+    }
   }
-  
-  delay(10);
 }
