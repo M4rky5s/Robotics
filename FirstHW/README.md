@@ -1,21 +1,27 @@
 # Mini signalizacijos sistema su Arduino
 
 ## Projekto aprašymas
-Šis projektas imituoja paprastą signalizacijos sistemą. Sistema aptinka judesį naudodama PIR jutiklį ir įjungia garsinį bei vizualinį signalą (buzzer ir LED). Tokios sistemos gali būti naudojamos patalpų apsaugai ar automatiniam judesio aptikimui.
+Šis projektas imituoja paprastą signalizacijos sistemą. Sistema aptinka judesį naudodama PIR jutiklį ir įjungia garsinį bei vizualinį signalą (buzzer ir RGB LED(aptikus signala - Raudona spalva, neaptinkant signalo - žalia spalva). Išjungti signalizaciją galima tik suvedus teisingą slaptažodį, kitu atvėju signalizacija taip ir neišsijungs, kol nebus įvestas teisingas slaptažodis. Tokios sistemos gali būti naudojamos patalpų apsaugai ar automatiniam judesio aptikimui.
 
 ## Naudoti komponentai
 - Arduino Uno
 - PIR judesio jutiklis
-- LED su rezistoriumi (220 Ω)
+- RGB LED
+- Rezistoriai
 - Buzzer
 - Breadboard
+- LCD 16x2 (I2C)
+- Mygtukas (Pushbutton)
+- Keypad 4x4
 - Jungiamieji laidai
 
 ## Schema
 Komponentų sujungimas:
-- PIR OUT → D2  
-- LED → D12 (per rezistorių į GND)  
-- Buzzer → D13  
+- PIR OUT → D8  
+- RGB LED → D12, D11, D10 (per rezistorių į GND)  
+- Buzzer → D13
+- LCD I2C: Arduino GND → GND, 5V → VCC, A4 → SDA, A5 → SCL
+- Keypad: ROWS → D7, D6, D5, D4. COLS → D3, D2, D1, D0.
 - Maitinimas: 5V ir GND iš Arduino  
 
 ![Schema](HW1.png)  
