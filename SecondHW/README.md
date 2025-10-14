@@ -1,4 +1,4 @@
-<img width="99" height="125" alt="image" src="https://github.com/user-attachments/assets/ffc97629-0a37-453b-88fd-66ddf90ad18d" /># Reaction Time Tester
+# Reaction Time Tester
 This project is a Reaction Time Tester built with Arduino, an RGB LED, a push button, and a 16x2 LCD display.
 It measures how quickly a user can respond to a visual stimulus and displays minimum, maximum, and average reaction times after 5.
 
