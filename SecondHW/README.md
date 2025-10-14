@@ -30,6 +30,22 @@ Measuring human reaction time can provide insight into reflexes and attention. T
 7. The system then resets when the button is pressed again.
 
 # Wiring / Schematic
+
+| LCD | Connection |
+| ------------- | ------------- |
+| VSS | GND |
+| VDD | 5V |
+| V0 | Potentiometer middle pin |
+| RS | Arduino pin 7 |
+| RW | GND |
+| E | Arduino pin 6 |
+| D4 | Arduino pin 5 |
+| D5 | Arduino pin 4 |
+| D6 | Arduino pin 3 |
+| D7 | Arduino pin 2 |
+| A | 5V |
+| K | GND with 1k resistor |
+
   - REB LED pins connected to Arduino pins 9 (G), 10 (B), 11(R) through 220 Ω resistors.
   - Common anode connected to 5V.
   - Push button connected to pin 8 with internal pull-up.
