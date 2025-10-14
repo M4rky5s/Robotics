@@ -1,4 +1,4 @@
-# Reaction Time Tester
+<img width="99" height="125" alt="image" src="https://github.com/user-attachments/assets/ffc97629-0a37-453b-88fd-66ddf90ad18d" /># Reaction Time Tester
 This project is a Reaction Time Tester built with Arduino, an RGB LED, a push button, and a 16x2 LCD display.
 It measures how quickly a user can respond to a visual stimulus and displays minimum, maximum, and average reaction times after 5.
 
@@ -46,10 +46,22 @@ Measuring human reaction time can provide insight into reflexes and attention. T
 | A | 5V |
 | K | GND with 1k resistor |
 
-  - REB LED pins connected to Arduino pins 9 (G), 10 (B), 11(R) through 220 Ω resistors.
-  - Common anode connected to 5V.
-  - Push button connected to pin 8 with internal pull-up.
-  - LCD connected to pins 2-7 (RS, EN, D4-D7), powered through 5V and GND, with potentiometer for contrast.
+| Potentiometer | Connection |
+| ------------- | ---------- |
+| Right | GND |
+| Middle | LCD V0 |
+| Left | 5V |
+
+| RGB | Connection |
+| ----------- | ---------- |
+| RED | Arduino pin 11 |
+| BLUE | Arduino pin 10 |
+| GREEN | Arduino pin 9 |
+| Anode | 5V |
+
+| Push button | Connection |
+| ----------- | ---------- |
+| Push button | Arduino pin 8 |
 
 ![Schema](Homework2.png)
 
