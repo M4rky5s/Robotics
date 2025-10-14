@@ -10,6 +10,7 @@ LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
 
 int lastButtonState = HIGH;
 
+// Padariau taip, nes čia ir buvo problema su ledu, kadangi spalvos buvo visai ne tokios, kaip buvau nustated RGB
 void setColor(int red, int green, int blue){
   analogWrite(pinLedRed,   255 - constrain(red,   0, 255));
   analogWrite(pinLedGreen, 255 - constrain(green, 0, 255));
@@ -22,6 +23,21 @@ unsigned long waitDuration = 0;
 
 unsigned long startReactionTime = 0;
 bool waitingForReaction = false;
+
+// ---- Statistika po 5 bandymų ----
+const int TRIALS_PER_SET = 5;
+unsigned long sumRT = 0;
+unsigned long minRT = 0xFFFFFFFFUL;
+unsigned long maxRT = 0;
+int trialCount = 0;
+bool showingSummary = false;
+
+void resetStats(){
+  sumRT = 0;
+  minRT = 0xFFFFFFFFUL;
+  maxRT = 0;
+  trialCount = 0;
+}
 
 void setup()
 {
@@ -44,9 +60,22 @@ void setup()
 void loop() {
   int buttonState = digitalRead(pinButton);
 
-  // Fiksuojam paspaudimo momentą (HIGH -> LOW), jei kol kas nelaukiam
+  // Jei rodoma suvestinė – mygtuko paspaudimas pradeda naują seriją
+  if (showingSummary) {
+    if (lastButtonState == HIGH && buttonState == LOW) {
+      showingSummary = false;
+      resetStats();
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Press to start");
+      setColor(255, 0, 0);
+    }
+    lastButtonState = buttonState;
+    return; // kol rodom suvestinę, kitų būsenų nevykdom
+  }
+
+  // Startas: paspaudimas (HIGH -> LOW), jei kol kas nelaukiam
   if (!waiting && !waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
-    // pradedam laukimą: LED lieka raudonas
     setColor(255, 0, 0);
     waitDuration = random(1000, 5000);       // 1..5 s
     startWaitTime = millis();
@@ -57,30 +86,58 @@ void loop() {
     lcd.print("Get ready...");
   }
 
-  // Jei laukiam ir laikas praėjo -> užsidega žalia
+  // Baigėsi laukimas -> GO
   if (waiting && (millis() - startWaitTime >= waitDuration)) {
     setColor(0, 255, 0);
     waiting = false;
     waitingForReaction = true;
     startReactionTime = millis();
     
-   	lcd.clear();
+    lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("GO!");
   }
   
-  if(waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
+  // Užfiksuotas paspaudimas po GO -> rezultatą į statistiką
+  if (waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
     unsigned long reactionTime = millis() - startReactionTime;
     waitingForReaction = false;
-    
+
+    // atnaujinti statistiką
+    sumRT += reactionTime;
+    if (reactionTime < minRT) minRT = reactionTime;
+    if (reactionTime > maxRT) maxRT = reactionTime;
+    trialCount++;
+
+    // parodyti paskutinį rezultatą
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Reaction time:");
-    lcd.setCursor(0, 1);
+    lcd.print("Time: ");
     lcd.print(reactionTime);
     lcd.print(" ms");
-    
+    lcd.setCursor(0, 1);
+    lcd.print("Try ");
+    lcd.print(trialCount);
+    lcd.print("/");
+    lcd.print(TRIALS_PER_SET);
+
     setColor(255, 0, 0);
+
+    // jei tai 5-as bandymas -> parodyti suvestinę
+    if (trialCount >= TRIALS_PER_SET) {
+      unsigned long avg = sumRT / trialCount;
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Avg:");
+      lcd.print(avg);
+      lcd.print(" Min:");
+      lcd.print(minRT);
+      lcd.setCursor(0,1);
+      lcd.print("Max:");
+      lcd.print(maxRT);
+      lcd.print("  (Press)");
+      showingSummary = true; // laukiame mygtuko, kad pradėti naują seriją
+    }
   }
 
   lastButtonState = buttonState;
