@@ -38,7 +38,7 @@ Measuring human reaction time can provide insight into reflexes and attention. T
 ![Schema](Homework2.png)
 
 # Real Setup
-<img src="RealSetup2.jpg" alt="Real Schema" width="800" height="400")
+![Schema](RealSetup2.jpg)
 
 # Code
 This project is implemented in C++ using the Arduino IDE, using:
