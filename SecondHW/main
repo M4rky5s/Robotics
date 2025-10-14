@@ -1,1 +1,87 @@
+#include <LiquidCrystal.h>
 
+// Pinai
+int pinLedRed = 11;
+int pinLedBlue = 10;
+int pinLedGreen = 9;
+int pinButton = 8;
+
+LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
+
+int lastButtonState = HIGH;
+
+void setColor(int red, int green, int blue){
+  analogWrite(pinLedRed,   255 - constrain(red,   0, 255));
+  analogWrite(pinLedGreen, 255 - constrain(green, 0, 255));
+  analogWrite(pinLedBlue,  255 - constrain(blue,  0, 255));
+}
+
+bool waiting = false;
+unsigned long startWaitTime = 0;
+unsigned long waitDuration = 0;
+
+unsigned long startReactionTime = 0;
+bool waitingForReaction = false;
+
+void setup()
+{
+  pinMode(pinLedRed, OUTPUT);
+  pinMode(pinLedBlue, OUTPUT);
+  pinMode(pinLedGreen, OUTPUT);
+  pinMode(pinButton, INPUT_PULLUP);
+  
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Reaction Tester");
+  
+  setColor(255, 0, 0);
+  
+  randomSeed(analogRead(A0));
+  lastButtonState = digitalRead(pinButton);
+}
+
+void loop() {
+  int buttonState = digitalRead(pinButton);
+
+  // Fiksuojam paspaudimo momentą (HIGH -> LOW), jei kol kas nelaukiam
+  if (!waiting && !waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
+    // pradedam laukimą: LED lieka raudonas
+    setColor(255, 0, 0);
+    waitDuration = random(1000, 5000);       // 1..5 s
+    startWaitTime = millis();
+    waiting = true;
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Get ready...");
+  }
+
+  // Jei laukiam ir laikas praėjo -> užsidega žalia
+  if (waiting && (millis() - startWaitTime >= waitDuration)) {
+    setColor(0, 255, 0);
+    waiting = false;
+    waitingForReaction = true;
+    startReactionTime = millis();
+    
+   	lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GO!");
+  }
+  
+  if(waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
+    unsigned long reactionTime = millis() - startReactionTime;
+    waitingForReaction = false;
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Reaction time:");
+    lcd.setCursor(0, 1);
+    lcd.print(reactionTime);
+    lcd.print(" ms");
+    
+    setColor(255, 0, 0);
+  }
+
+  lastButtonState = buttonState;
+}
