@@ -1,4 +1,10 @@
 #include <LiquidCrystal.h>
+#include <EEPROM.h>
+
+volatile unsigned long tickMs = 0;
+
+unsigned long bestRT = 0xFFFFFFFFUL;
+unsigned long lastRT = 0;
 
 // Pinai
 int pinLedRed = 11;
@@ -10,13 +16,6 @@ LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
 
 int lastButtonState = HIGH;
 
-// Padariau taip, nes čia ir buvo problema su ledu, kadangi spalvos buvo visai ne tokios, kaip buvau nustated RGB
-void setColor(int red, int green, int blue){
-  analogWrite(pinLedRed,   255 - constrain(red,   0, 255));
-  analogWrite(pinLedGreen, 255 - constrain(green, 0, 255));
-  analogWrite(pinLedBlue,  255 - constrain(blue,  0, 255));
-}
-
 bool waiting = false;
 unsigned long startWaitTime = 0;
 unsigned long waitDuration = 0;
@@ -24,19 +23,64 @@ unsigned long waitDuration = 0;
 unsigned long startReactionTime = 0;
 bool waitingForReaction = false;
 
-// ---- Statistika po 5 bandymų ----
-const int TRIALS_PER_SET = 5;
-unsigned long sumRT = 0;
-unsigned long minRT = 0xFFFFFFFFUL;
-unsigned long maxRT = 0;
-int trialCount = 0;
-bool showingSummary = false;
+struct Persist {
+  uint32_t magic;
+  uint8_t version;
+  uint32_t bestRT;
+};
 
-void resetStats(){
-  sumRT = 0;
-  minRT = 0xFFFFFFFFUL;
-  maxRT = 0;
-  trialCount = 0;
+const uint32_t P_MAGIC = 0xB35DB357UL;
+const uint8_t P_VER = 1;
+
+Persist P;
+
+// Padariau taip, nes čia ir buvo problema su ledu, kadangi spalvos buvo visai ne tokios, kaip buvau nustated RGB
+void setColor(int red, int green, int blue){
+  analogWrite(pinLedRed,   255 - constrain(red,   0, 255));
+  analogWrite(pinLedGreen, 255 - constrain(green, 0, 255));
+  analogWrite(pinLedBlue,  255 - constrain(blue,  0, 255));
+}
+
+ISR(TIMER1_COMPA_vect){
+  tickMs++;
+}
+
+void setupTimer1_1kHz(){
+  noInterrupts();
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1 = 0;
+
+  OCR1A = 15999;
+  TCCR1B |= (1 << WGM12);
+  TCCR1B |= (1 << CS10);
+  TIMSK1 |= (1 << OCIE1A);
+  interrupts();
+}
+
+unsigned long nowMs(){
+  noInterrupts();
+  unsigned long v = tickMs;
+  interrupts();
+  return v;
+}
+
+void loadPersist() {
+  EEPROM.get(0, P);
+  if(P.magic != P_MAGIC || P.version != P_VER) {
+    P.magic = P_MAGIC;
+    P.version = P_VER;
+    P.bestRT = 0xFFFFFFFFUL;
+    EEPROM.put(0, P);
+  }
+  bestRT = P.bestRT;
+}
+
+void saveBestIfBetter(uint32_t candidate) {
+  if(candidate < P.bestRT){
+    P.bestRT = candidate;
+    EEPROM.put(0, P);
+  }
 }
 
 void setup()
@@ -50,94 +94,93 @@ void setup()
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Reaction Tester");
-  
+
+  setupTimer1_1kHz();
+
   setColor(255, 0, 0);
   
   randomSeed(analogRead(A0));
   lastButtonState = digitalRead(pinButton);
+
+  loadPersist();
+
+  unsigned long t0 = nowMs();
+  while(nowMs() - t0 < 3000){}
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Press to start");
+  lcd.setCursor(0, 1);
+  lcd.print("Best: ");
+  if(bestRT == 0xFFFFFFFFUL){
+    lcd.print("--");
+  } else {
+    lcd.print(bestRT);
+  }
 }
 
 void loop() {
   int buttonState = digitalRead(pinButton);
 
-  // Jei rodoma suvestinė – mygtuko paspaudimas pradeda naują seriją
-  if (showingSummary) {
-    if (lastButtonState == HIGH && buttonState == LOW) {
-      showingSummary = false;
-      resetStats();
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print("Press to start");
-      setColor(255, 0, 0);
-    }
-    lastButtonState = buttonState;
-    return; // kol rodom suvestinę, kitų būsenų nevykdom
-  }
-
   // Startas: paspaudimas (HIGH -> LOW), jei kol kas nelaukiam
   if (!waiting && !waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
     setColor(255, 0, 0);
     waitDuration = random(1000, 5000);       // 1..5 s
-    startWaitTime = millis();
+    startWaitTime = nowMs();
     waiting = true;
     
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Get ready...");
+    lcd.setCursor(0, 1);
+    lcd.print("Best: ");
+    if (bestRT == 0xFFFFFFFFUL){
+      lcd.print("--");
+    } else {
+      lcd.print(bestRT);
+    }
   }
 
   // Baigėsi laukimas -> GO
-  if (waiting && (millis() - startWaitTime >= waitDuration)) {
+  if (waiting && (nowMs() - startWaitTime >= waitDuration)) {
     setColor(0, 255, 0);
     waiting = false;
     waitingForReaction = true;
-    startReactionTime = millis();
+    startReactionTime = nowMs();
     
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("GO!");
+    lcd.setCursor(0, 1);
+    lcd.print("Best: ");
+    if (bestRT == 0xFFFFFFFFUL){
+      lcd.print("--");
+    } else {
+      lcd.print(bestRT);
+    }
   }
   
   // Užfiksuotas paspaudimas po GO -> rezultatą į statistiką
   if (waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
-    unsigned long reactionTime = millis() - startReactionTime;
+    unsigned long reactionTime = nowMs() - startReactionTime;
     waitingForReaction = false;
-
-    // atnaujinti statistiką
-    sumRT += reactionTime;
-    if (reactionTime < minRT) minRT = reactionTime;
-    if (reactionTime > maxRT) maxRT = reactionTime;
-    trialCount++;
+    lastRT = reactionTime;
+    if(reactionTime < bestRT){
+      bestRT = reactionTime;
+      saveBestIfBetter(bestRT);
+    }
 
     // parodyti paskutinį rezultatą
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Time: ");
-    lcd.print(reactionTime);
+    lcd.print("Now: ");
+    lcd.print(lastRT);
     lcd.print(" ms");
     lcd.setCursor(0, 1);
-    lcd.print("Try ");
-    lcd.print(trialCount);
-    lcd.print("/");
-    lcd.print(TRIALS_PER_SET);
+    lcd.print("Best: ");
+    lcd.print(bestRT);
 
     setColor(255, 0, 0);
-
-    // jei tai 5-as bandymas -> parodyti suvestinę
-    if (trialCount >= TRIALS_PER_SET) {
-      unsigned long avg = sumRT / trialCount;
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print("Avg:");
-      lcd.print(avg);
-      lcd.print(" Min:");
-      lcd.print(minRT);
-      lcd.setCursor(0,1);
-      lcd.print("Max:");
-      lcd.print(maxRT);
-      lcd.print("  (Press)");
-      showingSummary = true; // laukiame mygtuko, kad pradėti naują seriją
-    }
   }
 
   lastButtonState = buttonState;
