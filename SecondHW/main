@@ -2,6 +2,10 @@
 #include <EEPROM.h>
 
 volatile unsigned long tickMs = 0;
+volatile bool btnEdge = false;
+volatile uint8_t acceptPress = 0;
+volatile unsigned long lastIsrMs = 0;
+volatile unsigned long ignoreUntilMs = 0;
 
 unsigned long bestRT = 0xFFFFFFFFUL;
 unsigned long lastRT = 0;
@@ -10,11 +14,9 @@ unsigned long lastRT = 0;
 int pinLedRed = 11;
 int pinLedBlue = 10;
 int pinLedGreen = 9;
-int pinButton = 8;
+int pinButton = 2;
 
-LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
-
-int lastButtonState = HIGH;
+LiquidCrystal lcd(8, 7, 6, 5, 4, 3);
 
 bool waiting = false;
 unsigned long startWaitTime = 0;
@@ -23,10 +25,16 @@ unsigned long waitDuration = 0;
 unsigned long startReactionTime = 0;
 bool waitingForReaction = false;
 
+bool inCooldown = false;
+unsigned long cooldownUntil = 0;
+bool introShown = false;
+unsigned long introUntil = 0;
+
 struct Persist {
   uint32_t magic;
   uint8_t version;
   uint32_t bestRT;
+  uint32_t totalAttempts;
 };
 
 const uint32_t P_MAGIC = 0xB35DB357UL;
@@ -71,6 +79,7 @@ void loadPersist() {
     P.magic = P_MAGIC;
     P.version = P_VER;
     P.bestRT = 0xFFFFFFFFUL;
+    P.totalAttempts = 0;
     EEPROM.put(0, P);
   }
   bestRT = P.bestRT;
@@ -83,12 +92,36 @@ void saveBestIfBetter(uint32_t candidate) {
   }
 }
 
+void saveAttemptsIfNeeded(){
+  if(P.totalAttempts %10UL == 0UL){
+    EEPROM.put(0, P);
+  }
+}
+
+void onButtonFall(){
+  unsigned long now = tickMs;
+
+  if(now < ignoreUntilMs){
+    return;
+  }
+  if(now - lastIsrMs < 50){
+    return;
+  }
+  if(!acceptPress){
+    return;
+  }
+
+  btnEdge = true;
+  lastIsrMs = now;
+}
+
 void setup()
 {
   pinMode(pinLedRed, OUTPUT);
   pinMode(pinLedBlue, OUTPUT);
   pinMode(pinLedGreen, OUTPUT);
   pinMode(pinButton, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(pinButton), onButtonFall, FALLING);
   
   lcd.begin(16, 2);
   lcd.clear();
@@ -97,33 +130,46 @@ void setup()
 
   setupTimer1_1kHz();
 
+  introShown = true;
+  introUntil = nowMs() + 3000;
+
   setColor(255, 0, 0);
   
   randomSeed(analogRead(A0));
-  lastButtonState = digitalRead(pinButton);
 
   loadPersist();
-
-  unsigned long t0 = nowMs();
-  while(nowMs() - t0 < 3000){}
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Press to start");
-  lcd.setCursor(0, 1);
-  lcd.print("Best: ");
-  if(bestRT == 0xFFFFFFFFUL){
-    lcd.print("--");
-  } else {
-    lcd.print(bestRT);
-  }
+  
 }
 
 void loop() {
-  int buttonState = digitalRead(pinButton);
+
+  //Intro uzdarymas
+  if(introShown){
+    if(nowMs() >= introUntil){
+      introShown = false;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Press to start");
+      lcd.setCursor(0, 1);
+      lcd.print("Best:");
+      if(bestRT == 0xFFFFFFFFUL){
+        lcd.print("--");
+      } else {
+        lcd.print(bestRT);
+        lcd.print(" ms ");
+        lcd.print("#");
+        lcd.print(P.totalAttempts);
+      }
+      acceptPress = 1;
+    }
+    return;
+  }
 
   // Startas: paspaudimas (HIGH -> LOW), jei kol kas nelaukiam
-  if (!waiting && !waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
+  if (!waiting && !waitingForReaction && btnEdge) {
+    btnEdge = false;
+    acceptPress = 0;
+
     setColor(255, 0, 0);
     waitDuration = random(1000, 5000);       // 1..5 s
     startWaitTime = nowMs();
@@ -133,11 +179,14 @@ void loop() {
     lcd.setCursor(0, 0);
     lcd.print("Get ready...");
     lcd.setCursor(0, 1);
-    lcd.print("Best: ");
+    lcd.print("Best:");
     if (bestRT == 0xFFFFFFFFUL){
       lcd.print("--");
     } else {
       lcd.print(bestRT);
+      lcd.print(" ms ");
+      lcd.print("#");
+      lcd.print(P.totalAttempts);
     }
   }
 
@@ -148,20 +197,28 @@ void loop() {
     waitingForReaction = true;
     startReactionTime = nowMs();
     
+    ignoreUntilMs = startReactionTime + 10;
+    acceptPress = 1;
+
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("GO!");
     lcd.setCursor(0, 1);
-    lcd.print("Best: ");
+    lcd.print("Best:");
     if (bestRT == 0xFFFFFFFFUL){
       lcd.print("--");
     } else {
       lcd.print(bestRT);
+      lcd.print(" ms ");
+      lcd.print("#");
+      lcd.print(P.totalAttempts);
     }
   }
   
   // Užfiksuotas paspaudimas po GO -> rezultatą į statistiką
-  if (waitingForReaction && lastButtonState == HIGH && buttonState == LOW) {
+  if (waitingForReaction && btnEdge) {
+    btnEdge = false;
+    acceptPress = 0;
     unsigned long reactionTime = nowMs() - startReactionTime;
     waitingForReaction = false;
     lastRT = reactionTime;
@@ -170,6 +227,9 @@ void loop() {
       saveBestIfBetter(bestRT);
     }
 
+    P.totalAttempts++;
+    saveAttemptsIfNeeded();
+
     // parodyti paskutinį rezultatą
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -177,11 +237,35 @@ void loop() {
     lcd.print(lastRT);
     lcd.print(" ms");
     lcd.setCursor(0, 1);
-    lcd.print("Best: ");
+    lcd.print("Best:");
     lcd.print(bestRT);
+    lcd.print(" ms ");
+    lcd.print("#");
+    lcd.print(P.totalAttempts);
 
     setColor(255, 0, 0);
+
+    inCooldown = true;
+    cooldownUntil = nowMs() + 1000;
   }
 
-  lastButtonState = buttonState;
+  if(inCooldown && nowMs() >= cooldownUntil){
+      inCooldown = false;
+
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Press to start");
+      lcd.setCursor(0, 1);
+      lcd.print("Best:");
+      if (bestRT == 0xFFFFFFFFUL) {
+        lcd.print("--");
+      } else {
+        lcd.print(bestRT);
+        lcd.print(" ms ");
+        lcd.print("#");
+        lcd.print(P.totalAttempts);
+      }
+
+      acceptPress = 1;
+    }
 }
