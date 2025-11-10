@@ -1,0 +1,102 @@
+#include <EEPROM.h>
+
+#define LDR_PIN     A0
+#define LED_PIN     8
+#define BUTTON_PIN  2
+#define BUZZER_PIN  9
+
+int mode = 0;                // 0 = AUTO, 1 = MANUAL
+int ledState = 0;
+const int modeAddress = 0;
+
+// Mygtuko logika
+volatile bool pressStartedISR = false;
+unsigned long debounceStart = 0;
+unsigned long holdStart = 0;
+bool waitingDebounce = false;
+bool holding = false;
+bool longHandled = false;
+
+const unsigned long DEBOUNCE_MS   = 30;
+const unsigned long LONG_PRESS_MS = 2000;
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onPressFalling, FALLING);
+
+  mode = EEPROM.read(modeAddress);
+  if (mode > 1) mode = 0;
+
+  Serial.println("Smart Light (long-press = change mode)");
+  Serial.print("Start mode: ");
+  Serial.println(mode == 0 ? "AUTO" : "MANUAL");
+}
+
+void loop() {
+  if (pressStartedISR) {
+    pressStartedISR = false;
+    waitingDebounce = true;
+    debounceStart = millis();
+  }
+
+  if (waitingDebounce) {
+    if (millis() - debounceStart >= DEBOUNCE_MS) {
+      if (digitalRead(BUTTON_PIN) == LOW) {
+        holding = true;
+        holdStart = millis();
+        longHandled = false;
+      }
+      waitingDebounce = false;
+    }
+  }
+
+  if (holding) {
+    if (digitalRead(BUTTON_PIN) == LOW) {
+      unsigned long held = millis() - holdStart;
+      if (!longHandled && held >= LONG_PRESS_MS) {
+        switchMode();
+        longHandled = true;
+      }
+    } else {
+      holding = false;
+      if (!longHandled && mode == 1) {
+        ledState = !ledState;
+        digitalWrite(LED_PIN, ledState);
+        Serial.print("Manual LED: ");
+        Serial.println(ledState ? "ON" : "OFF");
+      }
+      longHandled = false;
+    }
+  }
+
+  if (mode == 0) {
+    int lightVal = analogRead(LDR_PIN);
+    Serial.println(analogRead(LDR_PIN));
+    if (lightVal < 200) { 
+      digitalWrite(LED_PIN, HIGH); 
+      ledState = 1; 
+    }
+    else{ 
+      digitalWrite(LED_PIN, LOW);  ledState = 0;
+    }
+  }
+
+  delay(20);
+}
+
+void onPressFalling() {
+  pressStartedISR = true;
+}
+
+void switchMode() {
+  mode = !mode;
+  EEPROM.update(modeAddress, mode);
+  tone(BUZZER_PIN, 1000, 150);
+  Serial.print("Mode changed to: ");
+  Serial.println(mode == 0 ? "AUTO" : "MANUAL");
+}
