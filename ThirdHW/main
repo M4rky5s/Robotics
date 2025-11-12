@@ -1,24 +1,30 @@
 #include <EEPROM.h>
+#include <LiquidCrystal.h>
 
 #define LDR_PIN     A0
 #define LED_PIN     8
 #define BUTTON_PIN  2
 #define BUZZER_PIN  9
 
-int mode = 0;                // 0 = AUTO, 1 = MANUAL
+LiquidCrystal lcd(12, 11, 5, 4, 3, 6);
+
+int mode = 0;
 int ledState = 0;
 const int modeAddress = 0;
 
-// Mygtuko logika
 volatile bool pressStartedISR = false;
-unsigned long debounceStart = 0;
-unsigned long holdStart = 0;
-bool waitingDebounce = false;
-bool holding = false;
-bool longHandled = false;
+unsigned long debounceStart = 0, holdStart = 0;
+bool waitingDebounce = false, holding = false, longHandled = false;
 
 const unsigned long DEBOUNCE_MS   = 30;
 const unsigned long LONG_PRESS_MS = 2000;
+
+int threshold = 200;
+
+unsigned long lastLcd = 0;
+const unsigned long LCD_PERIOD = 250;
+
+int lastLdr = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -32,9 +38,17 @@ void setup() {
   mode = EEPROM.read(modeAddress);
   if (mode > 1) mode = 0;
 
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0,0); lcd.print("Smart light");
+  lcd.setCursor(0,1); lcd.print("Booting...");
+  
+  delay(2000);
+
   Serial.println("Smart Light (long-press = change mode)");
   Serial.print("Start mode: ");
   Serial.println(mode == 0 ? "AUTO" : "MANUAL");
+  
 }
 
 void loop() {
@@ -76,14 +90,23 @@ void loop() {
 
   if (mode == 0) {
     int lightVal = analogRead(LDR_PIN);
-    Serial.println(analogRead(LDR_PIN));
-    if (lightVal < 200) { 
+    lastLdr = lightVal;
+    Serial.println(lightVal);
+    if (lightVal < threshold) { 
       digitalWrite(LED_PIN, HIGH); 
       ledState = 1; 
+    } else { 
+      digitalWrite(LED_PIN, LOW);
+      ledState = 0;
     }
-    else{ 
-      digitalWrite(LED_PIN, LOW);  ledState = 0;
-    }
+  } else {
+    lastLdr = analogRead(LDR_PIN);
+  }
+
+  unsigned long now = millis();
+  if (now - lastLcd >= LCD_PERIOD) {
+    lastLcd = now;
+    updateLCD();
   }
 
   delay(20);
@@ -99,4 +122,34 @@ void switchMode() {
   tone(BUZZER_PIN, 1000, 150);
   Serial.print("Mode changed to: ");
   Serial.println(mode == 0 ? "AUTO" : "MANUAL");
+}
+
+void updateLCD() {
+  lcd.setCursor(0,0);
+  if (mode == 0) {
+    lcd.print("Mode:AUTO  ");
+  } else{
+    lcd.print("Mode:MANUAL");
+  }
+  
+  lcd.setCursor(12,0);
+  if (ledState){
+    lcd.print("ON ");
+  } else{
+    lcd.print("OFF");
+  }
+
+  lcd.setCursor(0,1);
+  lcd.print("LDR:");
+  lcd.print(lastLdr);
+  lcd.print("  ");
+  
+  int spaces = 4 - String(lastLdr).length();
+  while (spaces-- > 0) lcd.print(' ');
+
+  lcd.print(" T:");
+  lcd.print(threshold);
+  lcd.print("   ");
+  spaces = 4 - String(threshold).length();
+  while (spaces-- > 0) lcd.print(' ');
 }
