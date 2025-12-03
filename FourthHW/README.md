@@ -46,8 +46,8 @@ The system:
 3. PIN Entry Mode
 - The user must enter a 4-digit PIN.
 - Two push buttons are used:
-  -Button A: cycles digit (0 → 9 → 0).
-  -Button B: confirms digit and moves to the next position.
+    -Button A: cycles digit (0 → 9 → 0).
+    -Button B: confirms digit and moves to the next position.
 - LCD displays arrow indicating which digit is currently being edited.
 - If PIN matches EEPROM → system returns to DISARMED.
 - If PIN is incorrect → transitions to ALARM.
