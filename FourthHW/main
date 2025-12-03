@@ -1,9 +1,6 @@
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
 
-// ----------------------
-// PIN CONFIGURATION
-// ----------------------
 LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
 
 const int buttonA = 8;      // Digit increment
@@ -12,9 +9,6 @@ const int ldrPin  = A0;     // LDR motion trigger
 const int ledPin  = 10;     // Alarm LED
 const int buzzer  = 11;     // Piezo buzzer
 
-// ----------------------
-// SYSTEM STATES
-// ----------------------
 enum State {
   DISARMED,
   ARMED,
@@ -24,33 +18,21 @@ enum State {
 
 State state = DISARMED;
 
-// ----------------------
-// PIN VARIABLES
-// ----------------------
 byte savedPin[4];
 byte enteredPin[4];
 byte currentDigit = 0;
 int pinIndex = 0;
 
-// ----------------------
-// Debounce
-// ----------------------
 unsigned long lastA = 0;
 unsigned long lastB = 0;
 const int debounce = 200;
 
-// ----------------------
-// MOTION DETECTION
-// ----------------------
 bool checkMotion() {
   int val = analogRead(ldrPin);
   // Adjust threshold depending on room lighting
   return (val < 300);  // sudden darkness = motion
 }
 
-// ----------------------
-// LOAD PIN FROM EEPROM
-// ----------------------
 void loadPIN() {
   if (EEPROM.read(0) != 0xAB) {
     // No valid pin stored, default to 0000
@@ -66,9 +48,6 @@ void loadPIN() {
   }
 }
 
-// ----------------------
-// VERIFY PIN
-// ----------------------
 bool verifyPin() {
   for (int i = 0; i < 4; i++) {
     if (enteredPin[i] != savedPin[i]) return false;
@@ -76,13 +55,9 @@ bool verifyPin() {
   return true;
 }
 
-// ----------------------
-// LCD PIN DISPLAY
-// ----------------------
 void showEnterPin() {
   lcd.clear();
 
-  // ----- First row: PIN display -----
   lcd.setCursor(0, 0);
   lcd.print("PIN:");
 
@@ -94,7 +69,6 @@ void showEnterPin() {
       lcd.print(enteredPin[i]);
   }
 
-  // ----- Second row: Arrow pointer -----
   lcd.setCursor(0, 1);
 
   // Calculate arrow position (4 chars offset + 2 chars per digit)
@@ -107,9 +81,6 @@ void showEnterPin() {
   lcd.print("^");
 }
 
-// ----------------------
-// SETUP
-// ----------------------
 void setup() {
 
   pinMode(buttonA, INPUT_PULLUP);
@@ -137,14 +108,8 @@ void setup() {
   lcd.print("Press B to ARM");
 }
 
-// ----------------------
-// LOOP
-// ----------------------
 void loop() {
 
-  // ==========================================================
-  // STATE: DISARMED
-  // ==========================================================
   if (state == DISARMED) {
 
     if (digitalRead(buttonB) == LOW && millis() - lastB > debounce) {
@@ -159,9 +124,6 @@ void loop() {
     }
   }
 
-  // ==========================================================
-  // STATE: ARMED
-  // ==========================================================
   if (state == ARMED) {
 
     if (checkMotion()) {
@@ -176,12 +138,8 @@ void loop() {
     }
   }
 
-  // ==========================================================
-  // STATE: ENTER_PIN
-  // ==========================================================
   if (state == ENTER_PIN) {
 
-    // Button A: increment digit
     if (digitalRead(buttonA) == LOW && millis() - lastA > debounce) {
       lastA = millis();
 
@@ -189,7 +147,6 @@ void loop() {
       showEnterPin();
     }
 
-    // Button B: confirm digit
     if (digitalRead(buttonB) == LOW && millis() - lastB > debounce) {
       lastB = millis();
 
@@ -226,9 +183,6 @@ void loop() {
     }
   }
 
-  // ==========================================================
-  // STATE: ALARM_STATE
-  // ==========================================================
   if (state == ALARM_STATE) {
 
     lcd.clear();
@@ -236,13 +190,11 @@ void loop() {
     lcd.setCursor(0,1);
     lcd.print("Enter PIN");
 
-    // Alarm output
     digitalWrite(ledPin, HIGH);
     tone(buzzer, 1000);
 
     delay(1000);
 
-    // Reset PIN entry
     digitalWrite(ledPin, LOW);
     noTone(buzzer);
 
